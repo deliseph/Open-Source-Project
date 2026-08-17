@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Never commit anyone's real export or archive output.
+*.zip
+/archive/
+/out/
+/exports/
+.DS_Store
+.env
+.env.*

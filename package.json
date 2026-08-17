@@ -1,0 +1,57 @@
+{
+  "name": "archivore",
+  "version": "0.1.0",
+  "description": "Turn the ZIP exports from Instagram, TikTok, Snapchat, X and Mastodon into one clean, searchable archive you actually own. Runs entirely offline.",
+  "keywords": [
+    "data-portability",
+    "gdpr",
+    "social-media",
+    "export",
+    "archive",
+    "instagram",
+    "tiktok",
+    "snapchat",
+    "mastodon",
+    "privacy",
+    "self-hosted",
+    "offline"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "archivore": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "yauzl": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/yauzl": "^2.10.3",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
+  }
+}

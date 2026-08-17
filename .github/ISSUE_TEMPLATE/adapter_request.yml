@@ -1,0 +1,70 @@
+name: Support a new platform
+description: Ask for (or claim) an adapter for a platform Archivore can't read yet
+title: "[adapter] "
+labels: ["adapter", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks! Adapters are the main way this project grows.
+
+        **Never attach a real export.** It contains your private messages. Describe the
+        file layout instead — that's the genuinely useful part, and you can file this
+        issue usefully even if you never write a line of code.
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: Reddit, Facebook, Discord, Strava…
+    validations:
+      required: true
+
+  - type: input
+    id: request-url
+    attributes:
+      label: Where do you request the export?
+      placeholder: https://www.reddit.com/settings/data-request
+
+  - type: textarea
+    id: layout
+    attributes:
+      label: File layout
+      description: >
+        Run `unzip -l export.zip | head -40` (or just look in the folder) and paste the
+        structure. File *names* are safe to share; file *contents* usually are not.
+      render: text
+      placeholder: |
+        posts.csv
+        comments.csv
+        messages.csv
+        statistics.csv
+
+  - type: textarea
+    id: schema
+    attributes:
+      label: Record shape
+      description: >
+        One record with the values replaced by placeholders — keys are what matter.
+      render: json
+      placeholder: |
+        { "id": "...", "date": "2024-01-05 12:00:00 UTC", "body": "...", "permalink": "..." }
+
+  - type: checkboxes
+    id: quirks
+    attributes:
+      label: Anything odd about this export?
+      options:
+        - label: Media is download links that expire, not files in the ZIP
+        - label: Emoji or accented characters look mangled (`cafÃ©`, `ð`)
+        - label: Only covers a limited window (e.g. last 90 days)
+        - label: Format is CSV/HTML rather than JSON
+
+  - type: checkboxes
+    id: claiming
+    attributes:
+      label: Would you like to write it?
+      description: >
+        No pressure — filing the format above is a real contribution on its own.
+      options:
+        - label: I'd like to try, following docs/writing-an-adapter.md

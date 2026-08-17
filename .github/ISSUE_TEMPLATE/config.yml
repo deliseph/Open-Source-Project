@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How do I write an adapter?
+    url: https://github.com/deliseph/archivore/blob/main/docs/writing-an-adapter.md
+    about: A full walkthrough. Two methods, about 100 lines.
+  - name: Report a security vulnerability
+    url: https://github.com/deliseph/archivore/security/advisories/new
+    about: Please report privately, not as a public issue.

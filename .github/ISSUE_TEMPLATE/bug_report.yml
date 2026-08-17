@@ -1,0 +1,60 @@
+name: Bug report
+description: Something didn't work, or an export didn't parse correctly
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never attach your export.** It contains your private messages, and issues are
+        public and permanent. Redacted structure is what helps — see below.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you ran, what you expected, what you got.
+      placeholder: |
+        Ran: archivore build instagram.zip
+        Expected: my posts
+        Got: "0 entries"
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Full output
+      description: Including any warnings Archivore printed at the end.
+      render: shell
+
+  - type: input
+    id: platform-affected
+    attributes:
+      label: Which platform's export?
+      placeholder: Instagram
+
+  - type: input
+    id: version
+    attributes:
+      label: Archivore version
+      description: "`archivore --version`, or the commit if running from source."
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version and OS
+      placeholder: Node 22.2.0, macOS 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: structure
+    attributes:
+      label: Relevant file structure (optional)
+      description: >
+        If an export didn't parse, `unzip -l export.zip | head -40` is usually enough to
+        find the problem — platforms move these files around without telling anyone.
+      render: text
