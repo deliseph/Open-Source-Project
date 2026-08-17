@@ -1,0 +1,19 @@
+{
+  "name": "@archivore/radar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only mention and lead monitor. Finds conversations; never joins them.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": { "radar": "./dist/cli.js" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
+  }
+}
