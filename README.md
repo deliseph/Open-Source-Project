@@ -28,7 +28,7 @@ What compliance looks like in practice:
 - A multi-gigabyte ZIP arrives, and the download link expires in about a week.
 - Inside: `posts_1.json`, `posts_2.json`, and a `media/` folder where the captions
   have been separated from the photos they belong to.
-- Every emoji in your captions reads `ð`. Every accent reads `cafÃ©`.
+- Every emoji in your captions reads `ðŸ˜€`. Every accent reads `cafÃ©`.
   Instagram writes UTF-8 one byte at a time as if it were Latin-1, and has for years.
 - Snapchat's memories aren't files at all — they're download links that expire.
 - Each platform's format is different, so five exports means five piles.
@@ -128,19 +128,21 @@ This is the bug that makes exports feel broken, so it's worth being specific.
 
 Instagram builds its JSON by taking UTF-8 bytes and writing each byte as if it were a
 separate Latin-1 character. A `😀` is the four bytes `F0 9F 98 80`, so it arrives as
-four characters and renders as `ð`.
+four characters and renders as `ðŸ˜€`.
 
 ```js
 import { repairMojibake } from "archivore";
 
-repairMojibake("cafÃ©");           // → "café"
-repairMojibake("ð");     // → "😀"
-repairMojibake("50° today");        // → "50° today"   (untouched — this was never broken)
-repairMojibake("café 😀");          // → "café 😀"     (untouched — already correct)
+repairMojibake("cafÃ©");      // → "café"
+repairMojibake("ðŸ˜€");    // → "😀"
+repairMojibake("50° today");   // → "50° today"  (untouched — this was never broken)
+repairMojibake("café 😀");     // → "café 😀"    (untouched — already correct)
 ```
 
 The repair only commits when the reinterpreted bytes form valid UTF-8, so running it
 over healthy text is a no-op. It's exported, tested, and safe to use on its own.
+
+**[Full write-up: why this happens and why you can't fix it blindly →](docs/the-instagram-emoji-bug.md)**
 
 ## Privacy
 
