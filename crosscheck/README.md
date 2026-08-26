@@ -24,8 +24,8 @@ twice doesn't help — it has the same blind spots both times.
 Two models **from different labs** agreeing is a genuinely different signal. They don't
 share training data, and they don't share failure modes.
 
-Crosscheck runs the CLI agents you already have installed against the same diff,
-independently, then reconciles what comes back:
+Crosscheck runs several agents against the same diff independently — CLI agents you
+already have, models over an API, or a mix — then reconciles what comes back:
 
 ```
 2 findings · 1 confirmed across vendors
@@ -51,9 +51,15 @@ npm install -g crosscheck
 crosscheck doctor        # which agents do you have?
 ```
 
-Node 20+, and at least two coding agents **from different vendors**. Crosscheck runs
-them; it never calls a model API itself, so there are no keys to configure and no
-tokens billed beyond what your agents already cost you.
+Node 20+, and reviewers from at least **two different vendors**. Those can be:
+
+- **CLI agents you already have** — Claude Code, Codex, Gemini CLI, Aider, OpenCode.
+  Crosscheck runs them, so nothing extra is billed beyond what they already cost.
+- **API keys**, including free tiers with no credit card. No CLI to install and
+  nothing to host — see [No CLIs? Use models over HTTP](#no-clis-use-models-over-http).
+
+You can mix the two freely. One vendor gets you findings but never a CONFIRMED
+verdict, and `doctor` tells you so.
 
 ## Use
 
@@ -110,6 +116,69 @@ Three rules make those labels mean something:
 Findings are matched across reviewers by file, then by line proximity (±3 lines) and
 description overlap — because two models describing the same bug rarely word it the
 same way or agree on the exact line.
+
+## No CLIs? Use models over HTTP
+
+Installing a CLI per vendor is the biggest barrier to getting two labs
+reviewing your code. You don't have to.
+
+**There is no server to run.** Crosscheck is a command: it makes a few requests
+during a review and exits. Nothing runs when you aren't using it — no daemon, no
+gateway, no 24/7 anything. You only need an API key.
+
+```bash
+export GEMINI_API_KEY=...      # free, no credit card
+export GROQ_API_KEY=...        # free, no credit card
+crosscheck review -r gemini-free,groq-free
+```
+
+Built-in HTTP reviewers:
+
+| id | Model | Cost |
+| --- | --- | --- |
+| `gemini-free` | Gemini 2.5 Flash | Free tier |
+| `groq-free` | Llama 3.3 70B | Free tier |
+| `cerebras-free` | Llama 3.3 70B | Free tier |
+| `mistral-free` | Mistral Large | Free tier |
+| `anthropic-api` | Claude | Paid |
+| `openai-api` | GPT | Paid |
+| `openrouter` | Anything | Paid, one key for every lab |
+| `omniroute` | Anything | Local gateway, `localhost:20128` |
+| `ollama` | Local models | Free, your hardware |
+
+Everything speaks the OpenAI chat-completions shape, so any endpoint works —
+add your own in `crosscheck.json` with `"kind": "http"`.
+
+### Free tiers train on your code
+
+This matters more here than in most tools, because Crosscheck sends **your
+source**. Several free tiers use inputs to improve their models — Mistral's
+Experiment tier requires opting in, and Google's free tier permits it outside
+the EEA, Switzerland and the UK, where paid terms apply to free usage too.
+
+`crosscheck doctor` marks those endpoints. Free tiers are the right default for
+open source and the wrong default for your employer's repository — for private
+code, use a paid endpoint or a local model via `ollama`.
+
+Limits and terms change often. Verify before trusting either.
+
+### Gateways cannot fake consensus
+
+A gateway may fall back to another provider when one is rate-limited. If
+Crosscheck trusted the vendor it *asked* for, two "different vendors" agreeing
+could be the same model twice — consensus would become a lie with no error.
+
+So the vendor is derived from the model the response says **actually served**
+it, never from the one requested. A substitution is reported, and two reviewers
+that both fell back to the same lab produce `agreement: 1`, not CONFIRMED.
+This is a tested case.
+
+### HTTP reviewers, CLI authors
+
+An HTTP model only sees the text it is sent, so it reviews well — the diff *is*
+the input — but it cannot edit files and therefore cannot be the author.
+`build` refuses an HTTP author with an explanation rather than producing an
+empty diff. Reviewers can be HTTP; authors must be a CLI agent.
 
 ## Configure
 
@@ -190,7 +259,7 @@ installing Claude Code, Codex or Gemini:
 
 ```bash
 npm install
-npm test        # 42 tests, no agents required
+npm test        # 58 tests, no agents or API keys required
 npm run typecheck
 ```
 

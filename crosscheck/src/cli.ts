@@ -8,6 +8,7 @@ import { captureDiff, estimateTokens, isRepo } from "./core/git.js";
 import { isInstalled } from "./core/run.js";
 import { buildAndReview, review } from "./core/session.js";
 import type { AgentSpec, SessionReport, TeamConfig } from "./core/types.js";
+import { isHttp } from "./core/types.js";
 import { Office, printReport } from "./ui/office.js";
 
 const VERSION = "0.1.0";
@@ -106,17 +107,30 @@ async function commandDoctor(cwd: string): Promise<void> {
   process.stdout.write("\nAgents:\n\n");
 
   for (const spec of agents) {
-    const installed = await isInstalled(spec);
-    const mark = installed ? "\x1b[32m✓\x1b[0m" : "\x1b[90m·\x1b[0m";
-    process.stdout.write(`  ${mark} ${spec.id.padEnd(10)} ${spec.name} \x1b[90m(${spec.vendor})\x1b[0m\n`);
+    const ready = await isInstalled(spec);
+    const mark = ready ? "\x1b[32m\u2713\x1b[0m" : "\x1b[90m\u00b7\x1b[0m";
+    process.stdout.write(`  ${mark} ${spec.id.padEnd(14)} ${spec.name} \x1b[90m(${spec.vendor})\x1b[0m\n`);
 
-    // Show the exact command, so a drifted CLI flag is obvious and fixable.
-    const { args, useStdin } = buildInvocation(spec, "<prompt>");
-    process.stdout.write(
-      `    \x1b[90m${spec.command} ${args.join(" ")}${useStdin ? "  < prompt on stdin" : ""}\x1b[0m\n`,
-    );
-    if (!installed && spec.install) {
-      process.stdout.write(`    \x1b[90minstall: ${spec.install}\x1b[0m\n`);
+    if (isHttp(spec)) {
+      process.stdout.write(`    \x1b[90m${spec.model} via ${spec.endpoint}\x1b[0m\n`);
+      if (!ready && spec.apiKeyEnv) {
+        process.stdout.write(`    \x1b[90mset ${spec.apiKeyEnv}\x1b[0m`);
+        process.stdout.write(spec.signup ? ` \x1b[90m\u2014 ${spec.signup}\x1b[0m\n` : "\n");
+      }
+      if (spec.trainsOnData) {
+        process.stdout.write(
+          "    \x1b[33mfree tier may train on what you send \u2014 not for private code\x1b[0m\n",
+        );
+      }
+    } else {
+      // Show the exact command, so a drifted CLI flag is obvious and fixable.
+      const { args, useStdin } = buildInvocation(spec, "<prompt>");
+      process.stdout.write(
+        `    \x1b[90m${spec.command} ${args.join(" ")}${useStdin ? "  < prompt on stdin" : ""}\x1b[0m\n`,
+      );
+      if (!ready && spec.install) {
+        process.stdout.write(`    \x1b[90minstall: ${spec.install}\x1b[0m\n`);
+      }
     }
   }
 

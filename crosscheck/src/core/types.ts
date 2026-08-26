@@ -2,8 +2,8 @@
  * The shared vocabulary. Everything in Crosscheck is one of these.
  */
 
-/** How to invoke one CLI coding agent without a human at the keyboard. */
-export interface AgentSpec {
+/** Fields every agent has, however it is reached. */
+export interface AgentSpecBase {
   /** Short, stable, lowercase — used in config and output. */
   id: string;
   /** Shown in the office view, e.g. "Claude Code". */
@@ -13,6 +13,13 @@ export interface AgentSpec {
    * vendors, since two agents from the same lab share blind spots.
    */
   vendor: string;
+  /** Seconds before the agent is considered stuck. */
+  timeout?: number;
+}
+
+/** A coding agent invoked as a subprocess, without a human at the keyboard. */
+export interface CommandAgentSpec extends AgentSpecBase {
+  kind?: "command";
   /** Executable to run. Must be on PATH. */
   command: string;
   /**
@@ -20,10 +27,56 @@ export interface AgentSpec {
    * if no token is present the prompt is written to stdin instead.
    */
   args: string[];
-  /** Seconds before the agent is considered stuck. */
-  timeout?: number;
   /** A one-line note shown when the agent isn't installed. */
   install?: string;
+}
+
+/**
+ * A model reached over an OpenAI-compatible HTTP endpoint.
+ *
+ * This is what lets Crosscheck work without installing a CLI per vendor.
+ * Because the shape is the de-facto standard, one implementation covers
+ * provider APIs directly, hosted routers, and local gateways alike.
+ *
+ * Note the asymmetry with {@link CommandAgentSpec}: a CLI agent can read the
+ * repository and run tests, while an HTTP model only ever sees the text it is
+ * sent. That is fine for reviewing a diff — the diff *is* the input — but an
+ * HTTP agent cannot be the author, because it cannot edit files.
+ */
+export interface HttpAgentSpec extends AgentSpecBase {
+  kind: "http";
+  /** Full chat-completions URL. */
+  endpoint: string;
+  /** Model identifier to request. */
+  model: string;
+  /** Environment variable holding the API key. Omit for keyless local servers. */
+  apiKeyEnv?: string;
+  /** Extra headers, e.g. attribution headers some routers ask for. */
+  headers?: Record<string, string>;
+  /** Whether this endpoint has a usable free tier. */
+  free?: boolean;
+  /**
+   * Whether the provider may train on what you send on its free tier.
+   *
+   * Crosscheck sends your source code, so this is not a footnote — it is
+   * surfaced by `doctor` and warned about before a run.
+   */
+  trainsOnData?: boolean;
+  /** Where to get a key. */
+  signup?: string;
+}
+
+export type AgentSpec = CommandAgentSpec | HttpAgentSpec;
+
+/** A partial spec as it appears in crosscheck.json, before validation. */
+export type AgentOverride = Partial<CommandAgentSpec> & Partial<HttpAgentSpec>;
+
+export function isHttp(spec: AgentSpec): spec is HttpAgentSpec {
+  return spec.kind === "http";
+}
+
+export function isCommand(spec: AgentSpec): spec is CommandAgentSpec {
+  return spec.kind !== "http";
 }
 
 export type Severity = "critical" | "major" | "minor" | "nit";
@@ -92,6 +145,11 @@ export interface TeamConfig {
   author?: string;
   /** Agent ids that review it. */
   reviewers: string[];
-  /** Extra or overriding agent specs, merged over the built-ins by id. */
-  agents?: Partial<AgentSpec>[];
+  /**
+   * Extra or overriding agent specs, merged over the built-ins by id.
+   *
+   * Both kinds' fields are permitted here because config is JSON — validation
+   * happens in `resolveAgents`, which checks each kind has what it needs.
+   */
+  agents?: AgentOverride[];
 }

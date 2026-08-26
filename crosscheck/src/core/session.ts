@@ -7,6 +7,7 @@ import { captureDiff, createWorktree, filesInDiff } from "./git.js";
 import { authorPrompt, reviewPrompt } from "./prompts.js";
 import { runAgent } from "./run.js";
 import type { AgentRun, AgentSpec, Finding, SessionReport } from "./types.js";
+import { isHttp } from "./types.js";
 
 /** Progress callbacks, so the office view can show what's happening live. */
 export interface SessionEvents {
@@ -27,14 +28,33 @@ export interface ReviewOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * The vendor that actually answered.
+ *
+ * A gateway may fall back to a different provider when one is rate-limited.
+ * If Crosscheck kept the vendor it *asked* for, two "different vendors"
+ * agreeing could be the same model twice — consensus would silently become a
+ * lie with no error shown. So the served vendor always wins.
+ */
+function effectiveVendor(spec: AgentSpec, servedVendor?: string): string {
+  return servedVendor ?? spec.vendor;
+}
+
 function toRun(
   spec: AgentSpec,
   role: "author" | "reviewer",
-  result: { ok: boolean; stdout: string; stderr: string; timedOut: boolean; durationMs: number },
+  result: {
+    ok: boolean;
+    stdout: string;
+    stderr: string;
+    timedOut: boolean;
+    durationMs: number;
+    servedVendor?: string;
+  },
 ): AgentRun {
   return {
     agent: spec.id,
-    vendor: spec.vendor,
+    vendor: effectiveVendor(spec, result.servedVendor),
     role,
     ok: result.ok,
     output: result.stdout,
@@ -73,8 +93,18 @@ export async function review(options: ReviewOptions): Promise<SessionReport> {
       });
 
       const run = toRun(spec, "reviewer", result);
+
+      // Tell the user when a gateway answered with a different lab than asked
+      // for — it changes what the consensus verdicts mean.
+      if (result.servedVendor && result.servedVendor !== spec.vendor) {
+        events?.onNote?.(
+          `${spec.id}: served by ${result.servedVendor} (asked for ${spec.vendor})` +
+            (result.servedModel ? ` — ${result.servedModel}` : ""),
+        );
+      }
+
       const { findings, hadJson } = result.ok
-        ? parseFindings(result.stdout, spec.id, spec.vendor)
+        ? parseFindings(result.stdout, spec.id, run.vendor)
         : { findings: [] as Finding[], hadJson: false };
 
       // A reviewer that ran but produced no parseable JSON is not the same as
@@ -127,6 +157,15 @@ export async function buildAndReview(
   options: BuildOptions,
 ): Promise<SessionReport & { worktreePath?: string }> {
   const { cwd, author, task, events, signal, keepWorktree } = options;
+
+  if (isHttp(author)) {
+    throw new Error(
+      `"${author.id}" is an HTTP model, which can only read the text it is sent — ` +
+        "it cannot edit files, so it cannot be the author. Use a CLI agent " +
+        "(claude, codex, gemini, aider, opencode) as --author. HTTP agents make " +
+        "excellent reviewers.",
+    );
+  }
 
   const stamp = Date.now().toString(36);
   const branch = `crosscheck/${stamp}`;

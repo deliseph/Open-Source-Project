@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
 
 import { buildInvocation } from "./agents.js";
-import type { AgentSpec } from "./types.js";
+import { runHttpAgent, isConfigured } from "./http-agent.js";
+import type { AgentSpec, CommandAgentSpec } from "./types.js";
+import { isHttp } from "./types.js";
 
 export interface RunResult {
   ok: boolean;
@@ -10,6 +12,10 @@ export interface RunResult {
   code: number | null;
   timedOut: boolean;
   durationMs: number;
+  /** For HTTP agents: the model the response says actually served it. */
+  servedModel?: string;
+  /** Vendor derived from the served model, when determinable. */
+  servedVendor?: string;
 }
 
 export interface RunOptions {
@@ -28,8 +34,8 @@ export interface RunOptions {
  * it arrives rather than only at the end — otherwise the office view would sit
  * frozen for ten minutes.
  */
-export function runAgent(
-  spec: AgentSpec,
+function runCommandAgent(
+  spec: CommandAgentSpec,
   prompt: string,
   options: RunOptions = {},
 ): Promise<RunResult> {
@@ -110,8 +116,35 @@ export function runAgent(
   });
 }
 
+
+/**
+ * Runs an agent, whichever way it is reached.
+ *
+ * The two kinds are not interchangeable: a subprocess agent can read the repo
+ * and run tests, while an HTTP model only sees the prompt. That is fine for
+ * review — the diff is the input — but an HTTP agent cannot author changes.
+ */
+export async function runAgent(
+  spec: AgentSpec,
+  prompt: string,
+  options: RunOptions = {},
+): Promise<RunResult> {
+  if (isHttp(spec)) {
+    const result = await runHttpAgent(spec, prompt, {
+      ...(options.timeout != null ? { timeout: options.timeout } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.onOutput ? { onOutput: options.onOutput } : {}),
+    });
+    return { ...result, code: result.ok ? 0 : 1 };
+  }
+  return runCommandAgent(spec, prompt, options);
+}
+
 /** Whether an agent's executable can be found, without running a real task. */
 export async function isInstalled(spec: AgentSpec): Promise<boolean> {
+  // An HTTP agent needs no install — only a key, where one is required.
+  if (isHttp(spec)) return isConfigured(spec);
+
   return new Promise((resolve) => {
     const probe = spawn(process.platform === "win32" ? "where" : "which", [spec.command], {
       stdio: "ignore",
