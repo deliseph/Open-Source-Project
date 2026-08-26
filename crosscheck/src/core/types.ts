@@ -137,6 +137,8 @@ export interface SessionReport {
   findings: RankedFinding[];
   /** Distinct vendors that produced a usable review. */
   vendorsHeard: string[];
+  /** Seats that needed a fallback, as "first -> second" chains. */
+  fellBack?: string[];
 }
 
 /** A team, as loaded from crosscheck.json. */

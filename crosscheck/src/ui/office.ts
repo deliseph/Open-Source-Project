@@ -185,6 +185,13 @@ export function printReport(report: SessionReport): void {
   }
   if (failed.length) out.write("\n");
 
+  if (report.fellBack?.length) {
+    for (const chain of report.fellBack) {
+      out.write(`${C.yellow}~${C.reset} ${C.grey}fell back: ${chain}${C.reset}\n`);
+    }
+    out.write("\n");
+  }
+
   if (report.vendorsHeard.length < 2) {
     out.write(
       `${C.yellow}!${C.reset} Only ${report.vendorsHeard.length || "no"} vendor${

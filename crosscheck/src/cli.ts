@@ -6,6 +6,7 @@ import { parseArgs } from "node:util";
 import { BUILTIN_AGENTS, buildInvocation, findAgent, resolveAgents } from "./core/agents.js";
 import { captureDiff, estimateTokens, isRepo } from "./core/git.js";
 import { isInstalled } from "./core/run.js";
+import { COOLDOWN_PATH, Cooldowns, mixedVendorSlots, resolveSlots, vendorsIn } from "./core/pool.js";
 import { buildAndReview, review } from "./core/session.js";
 import type { AgentSpec, SessionReport, TeamConfig } from "./core/types.js";
 import { isHttp } from "./core/types.js";
@@ -27,6 +28,9 @@ USAGE
 
 OPTIONS
   -r, --reviewers <ids>   Comma-separated, e.g. codex,gemini
+                          Use | for a fallback chain within one seat, so a
+                          free tier running out doesn't kill the run:
+                            -r "gemini-free|gemini-api,groq-free"
   -a, --author <id>       Agent that writes the code (build only)
       --base <ref>        Review branch against this ref instead of the worktree
       --json <file>       Also write the full report as JSON
@@ -202,8 +206,28 @@ async function main(): Promise<void> {
   if (!reviewerIds?.length) {
     fail("No reviewers. Pass --reviewers codex,gemini or run `crosscheck init`.");
   }
-  const reviewers = pick(agents, reviewerIds, "reviewer");
+  // Slots first: a reviewer id may be an `a|b` fallback chain, which `pick`
+  // would reject as an unknown agent.
+  const { slots, unknown } = resolveSlots(reviewerIds, agents);
+  if (unknown.length) {
+    fail(
+      `Unknown reviewer${unknown.length > 1 ? "s" : ""} "${unknown.join('", "')}". ` +
+        `Known agents: ${agents.map((a) => a.id).join(", ")}`,
+    );
+  }
+  if (slots.length === 0) fail("No reviewers resolved.");
+
+  const reviewers = slots.map((slot) => slot.candidates[0]!);
   warnSingleVendor(reviewers);
+
+  for (const slot of mixedVendorSlots(slots)) {
+    process.stderr.write(
+      `\nwarning: seat "${slot.id}" can fall back across vendors ` +
+        `(${[...vendorsIn(slot)].join(", ")}).\n` +
+        `         A CONFIRMED verdict may then rest on a different pair of labs\n` +
+        `         than you configured. The report says which actually answered.\n`,
+    );
+  }
 
   const live = !values.plain;
   let report: SessionReport;
@@ -227,12 +251,26 @@ async function main(): Promise<void> {
       );
     }
 
+    const cooldowns = new Cooldowns(COOLDOWN_PATH);
+    await cooldowns.load();
+
     const office = new Office(`reviewing ${Math.round(diff.length / 1024)}KB of changes`, live);
     for (const spec of reviewers) office.add(spec, "reviewer");
     office.start();
 
-    report = await review({ cwd, reviewers, diff, events: attachOffice(office, reviewers) });
+    report = await review({
+      cwd,
+      reviewers,
+      slots,
+      cooldowns,
+      diff,
+      events: {
+        ...attachOffice(office, reviewers),
+        onNote: (m) => process.stderr.write(`  ~ ${m}\n`),
+      },
+    });
     office.stop();
+    await cooldowns.save();
   } else {
     const task = rest.join(" ").trim();
     if (!task) fail('`build` needs a task, e.g. crosscheck build "add retry to the client"');

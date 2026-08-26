@@ -25,6 +25,16 @@ export interface HttpRunResult {
   servedModel?: string;
   /** Vendor derived from `servedModel`, when it could be determined. */
   servedVendor?: string;
+  /**
+   * The provider refused because a quota or rate limit was hit.
+   *
+   * Distinguished from other failures because it is the one case where trying
+   * a different endpoint is the right response — a 500 usually means retrying
+   * elsewhere will fail the same way.
+   */
+  rateLimited?: boolean;
+  /** Seconds the provider asked us to wait, when it said. */
+  retryAfter?: number;
 }
 
 interface ChatResponse {
@@ -106,12 +116,19 @@ export async function runHttpAgent(
     }
 
     if (!response.ok) {
+      // 402 is "out of credit", 429 is "too fast or out of quota". Both mean
+      // this endpoint is done for now and another should be tried.
+      const rateLimited = response.status === 429 || response.status === 402;
+      const header = Number(response.headers.get("retry-after"));
+
       return {
         ok: false,
         stdout: "",
         stderr: errorText(body, response.status),
         timedOut: false,
         durationMs: Date.now() - started,
+        ...(rateLimited ? { rateLimited: true } : {}),
+        ...(Number.isFinite(header) && header > 0 ? { retryAfter: header } : {}),
       };
     }
 

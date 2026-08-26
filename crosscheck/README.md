@@ -162,6 +162,50 @@ code, use a paid endpoint or a local model via `ollama`.
 
 Limits and terms change often. Verify before trusting either.
 
+### When a free tier runs out
+
+Free quotas are where runs die: a reviewer that worked this morning returns 429
+this afternoon. Give a seat a fallback chain with `|`:
+
+```bash
+crosscheck review -r "gemini-free|gemini-api, groq-free|cerebras-free"
+```
+
+Each seat tries its endpoints in order. Only quota failures (429, 402) move on
+— a 500 stops, because retrying it elsewhere usually fails the same way more
+slowly. An exhausted endpoint is remembered in `.crosscheck/cooldowns.json` and
+skipped until its window passes, honouring `Retry-After` when the provider
+sends one.
+
+```
+~ free out of quota — falling back to paid
+~ fell back: free -> paid
+
+CONFIRMED 2 vendors
+  MAJOR  off-by-one: loop runs n+1 times
+```
+
+The report always says which seats fell back, so a run is never quietly
+different from what you configured.
+
+**A seat holds a vendor, not just an answer.** If fallbacks cross labs —
+`gemini-free|groq-free` is Google falling back to Meta — Crosscheck warns,
+because a CONFIRMED verdict may then rest on a different pair of labs than you
+chose. Prefer chaining the same vendor reached another way (free tier → paid
+key → gateway). If two seats both end up served by one lab, agreement is 1 and
+nothing is CONFIRMED. Tested both ways.
+
+**Nothing here acquires credentials.** Endpoints come from your config and keys
+from your environment. Crosscheck will not scan for keys or create accounts:
+using a key you found is unauthorised access to someone's paid account, and
+farming free-tier signups is quota fraud that gets the people running it
+banned. The supported way to survive a quota limit is to fall back to another
+endpoint *you* hold, or to a local model that has no quota at all:
+
+```bash
+crosscheck review -r "gemini-free|ollama, groq-free|ollama"
+```
+
 ### Gateways cannot fake consensus
 
 A gateway may fall back to another provider when one is rate-limited. If
@@ -259,7 +303,7 @@ installing Claude Code, Codex or Gemini:
 
 ```bash
 npm install
-npm test        # 58 tests, no agents or API keys required
+npm test        # 70 tests, no agents or API keys required
 npm run typecheck
 ```
 

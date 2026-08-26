@@ -6,6 +6,7 @@ import { parseFindings } from "./findings.js";
 import { captureDiff, createWorktree, filesInDiff } from "./git.js";
 import { authorPrompt, reviewPrompt } from "./prompts.js";
 import { runAgent } from "./run.js";
+import { Cooldowns, resolveSlots, runSlot, type Slot } from "./pool.js";
 import type { AgentRun, AgentSpec, Finding, SessionReport } from "./types.js";
 import { isHttp } from "./types.js";
 
@@ -20,6 +21,13 @@ export interface SessionEvents {
 export interface ReviewOptions {
   cwd: string;
   reviewers: AgentSpec[];
+  /**
+   * Fallback chains, one per reviewer seat. When present these are used
+   * instead of `reviewers`, so a seat survives its endpoint running out of
+   * free quota.
+   */
+  slots?: Slot[];
+  cooldowns?: Cooldowns;
   /** Pre-captured diff. Omit to read the working tree. */
   diff?: string;
   base?: string;
@@ -82,15 +90,38 @@ export async function review(options: ReviewOptions): Promise<SessionReport> {
   const changedFiles = new Set(filesInDiff(diff));
   const prompt = reviewPrompt(diff, task);
 
-  const results = await Promise.all(
-    reviewers.map(async (spec) => {
-      events?.onStart?.(spec, "reviewer");
+  // A seat per reviewer, each with its own fallback chain.
+  const slots: Slot[] =
+    options.slots ??
+    reviewers.map((spec) => ({ id: spec.id, vendor: spec.vendor, candidates: [spec] }));
 
-      const result = await runAgent(spec, prompt, {
+  const results = await Promise.all(
+    slots.map(async (slot) => {
+      const lead = slot.candidates[0]!;
+      events?.onStart?.(lead, "reviewer");
+
+      const outcome = await runSlot(slot, prompt, {
         cwd,
         ...(signal ? { signal } : {}),
-        onOutput: (chunk) => events?.onOutput?.(spec, chunk),
+        ...(options.cooldowns ? { cooldowns: options.cooldowns } : {}),
+        onOutput: (chunk) => events?.onOutput?.(lead, chunk),
+        onFallback: (from, to, reason) =>
+          events?.onNote?.(
+            to
+              ? `${from.id} ${reason} — falling back to ${to.id}`
+              : `${from.id} ${reason} — no fallback left for this seat`,
+          ),
       });
+
+      const spec = outcome.used ?? lead;
+      const result = outcome.result ?? {
+        ok: false,
+        stdout: "",
+        stderr: outcome.attempts.map((a) => `${a.agent}: ${a.reason}`).join("; ") || "failed",
+        code: null,
+        timedOut: false,
+        durationMs: 0,
+      };
 
       const run = toRun(spec, "reviewer", result);
 
@@ -114,8 +145,8 @@ export async function review(options: ReviewOptions): Promise<SessionReport> {
         run.error = "no parseable findings in output";
       }
 
-      events?.onFinish?.(spec, run, findings.length);
-      return { run, findings };
+      events?.onFinish?.(lead, run, findings.length);
+      return { run, findings, attempts: outcome.attempts };
     }),
   );
 
@@ -136,6 +167,11 @@ export async function review(options: ReviewOptions): Promise<SessionReport> {
     reviews: results.map((r) => r.run),
     findings,
     vendorsHeard: [...reviewedFilesByVendor.keys()],
+    // Seats that needed more than one endpoint, so the user can see the run
+    // was not as configured.
+    fellBack: results
+      .filter((r) => r.attempts.length > 1)
+      .map((r) => r.attempts.map((a) => a.agent).join(" -> ")),
   };
 }
 

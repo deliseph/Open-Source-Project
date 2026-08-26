@@ -16,6 +16,10 @@ export interface RunResult {
   servedModel?: string;
   /** Vendor derived from the served model, when determinable. */
   servedVendor?: string;
+  /** The provider refused on quota — the one failure worth retrying elsewhere. */
+  rateLimited?: boolean;
+  /** Seconds the provider asked us to wait, when it said. */
+  retryAfter?: number;
 }
 
 export interface RunOptions {
