@@ -83,6 +83,7 @@ the checkout you're sitting in. Add `--keep-worktree` to inspect or merge the re
 | `-a, --author <id>` | who writes the code (`build` only) |
 | `--base <ref>` | review against a ref instead of the working tree |
 | `--json <file>` | write the full report as JSON |
+| `--html <file>` | write a self-contained HTML report (see below) |
 | `--keep-worktree` | don't delete the author's worktree |
 | `--plain` | no live office view (for CI logs) |
 
@@ -92,6 +93,33 @@ as a pre-commit hook or a CI gate:
 ```yaml
 - run: npx crosscheck review --base ${{ github.base_ref }} --plain
 ```
+
+## The review as a file you can read anywhere
+
+```bash
+crosscheck review --html review.html
+```
+
+One self-contained file. No server, no hosting, no build step — open it by
+double-clicking on a laptop or tapping it on a phone. The data is embedded and
+the styles are inlined, so it makes **no network requests at all** (asserted in
+CI, same as Archivore's archive page).
+
+- Responsive, so it reads properly on a phone
+- Follows the reader's light/dark preference
+- Filter by verdict and severity
+- **Save as PDF** — a permanent record of what was flagged and by whom, which
+  outlives the branch and this tool
+
+Printing always includes every finding, never whatever filter happened to be
+active. A review is tens of items, so nothing is behind pagination and a
+printed record can never be silently incomplete.
+
+Attach it to a pull request, mail it to a reviewer, or keep the PDF for an
+audit trail.
+
+> Add `review.html` and `.crosscheck/` to `.gitignore` — otherwise the report
+> shows up in the next diff you review.
 
 ## How the verdicts work
 
@@ -303,7 +331,7 @@ installing Claude Code, Codex or Gemini:
 
 ```bash
 npm install
-npm test        # 70 tests, no agents or API keys required
+npm test        # 72 tests, no agents or API keys required
 npm run typecheck
 ```
 

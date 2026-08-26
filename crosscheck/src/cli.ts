@@ -11,6 +11,7 @@ import { buildAndReview, review } from "./core/session.js";
 import type { AgentSpec, SessionReport, TeamConfig } from "./core/types.js";
 import { isHttp } from "./core/types.js";
 import { Office, printReport } from "./ui/office.js";
+import { writeReport } from "./export/report.js";
 
 const VERSION = "0.1.0";
 
@@ -34,6 +35,8 @@ OPTIONS
   -a, --author <id>       Agent that writes the code (build only)
       --base <ref>        Review branch against this ref instead of the worktree
       --json <file>       Also write the full report as JSON
+      --html <file>       Write a self-contained HTML report you can open
+                          on any device and save as a PDF
       --keep-worktree     Don't delete the author's worktree (build only)
       --plain             No live office view
   -h, --help / -v, --version
@@ -175,6 +178,7 @@ async function main(): Promise<void> {
         author: { type: "string", short: "a" },
         base: { type: "string" },
         json: { type: "string" },
+        html: { type: "string" },
         "keep-worktree": { type: "boolean", default: false },
         plain: { type: "boolean", default: false },
         help: { type: "boolean", short: "h", default: false },
@@ -302,6 +306,10 @@ async function main(): Promise<void> {
 
   printReport(report);
   if (values.json) await writeJsonReport(report, values.json);
+  if (values.html) {
+    await writeReport(report, values.html);
+    process.stdout.write(`\nwrote ${values.html} — open it in any browser, or print it to PDF\n`);
+  }
 
   // Exit non-zero when vendors agreed something is seriously wrong, so this
   // can gate a commit hook or a CI job.

@@ -55,10 +55,22 @@ export function isSameIssue(a: Finding, b: Finding): boolean {
   if (a.file !== b.file) return false;
 
   const overlap = similarity(a.title, b.title);
-  const bothLined = a.line != null && b.line != null;
 
-  if (bothLined && Math.abs(a.line! - b.line!) <= LINE_WINDOW) {
-    return overlap >= TITLE_THRESHOLD / 2;
+  if (a.line != null && b.line != null) {
+    const distance = Math.abs(a.line - b.line);
+
+    // Two reviewers pointing at exactly the same line are almost certainly
+    // talking about the same code, however differently they word it. Requiring
+    // shared vocabulary here was splitting real consensus apart: "auth token
+    // written to logs", "secret logged in plaintext" and "token value printed
+    // to console" share no words, so three vendors agreeing on one security
+    // bug was reported as three separate single-vendor hunches — the exact
+    // opposite of the truth.
+    //
+    // Over-merging two genuinely different issues on one line is possible, but
+    // it is rarer and far less misleading than fracturing one issue into N.
+    if (distance === 0) return true;
+    if (distance <= LINE_WINDOW) return overlap >= TITLE_THRESHOLD / 2;
   }
   return overlap >= TITLE_THRESHOLD;
 }

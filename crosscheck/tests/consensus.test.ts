@@ -57,6 +57,33 @@ describe("isSameIssue", () => {
     ).toBe(true);
   });
 
+  it("matches findings on the exact same line even with no shared words", () => {
+    // Three real reviewers describing one logged-credential bug. Requiring
+    // shared vocabulary here reported genuine consensus as three separate
+    // single-vendor hunches.
+    expect(
+      isSameIssue(
+        finding({ line: 8, title: "auth token written to logs" }),
+        finding({ line: 8, title: "secret logged in plaintext" }),
+      ),
+    ).toBe(true);
+    expect(
+      isSameIssue(
+        finding({ line: 8, title: "secret logged in plaintext" }),
+        finding({ line: 8, title: "token value printed to console" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("still separates same-line findings in different files", () => {
+    expect(
+      isSameIssue(
+        finding({ file: "a.ts", line: 8, title: "auth token written to logs" }),
+        finding({ file: "b.ts", line: 8, title: "secret logged in plaintext" }),
+      ),
+    ).toBe(false);
+  });
+
   it("keeps genuinely different issues in the same file apart", () => {
     expect(
       isSameIssue(

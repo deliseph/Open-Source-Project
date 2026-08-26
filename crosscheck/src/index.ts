@@ -28,3 +28,4 @@ export { authorPrompt, fixPrompt, reviewPrompt } from "./core/prompts.js";
 export { buildAndReview, review } from "./core/session.js";
 export type { BuildOptions, ReviewOptions, SessionEvents } from "./core/session.js";
 export { Office, printReport } from "./ui/office.js";
+export { renderReport, writeReport } from "./export/report.js";
