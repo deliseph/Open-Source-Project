@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 import { build, writeJson } from "../src/core/archive.js";
@@ -13,9 +11,7 @@ import { x } from "../src/adapters/x.js";
 import { writeHtml } from "../src/export/html.js";
 import { writeMarkdown } from "../src/export/markdown.js";
 
-import { instagramExport, tempDir, xExport } from "./fixtures.js";
-
-const run = promisify(execFile);
+import { instagramExport, tempDir, xExport, zipDirectory } from "./fixtures.js";
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -26,17 +22,10 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-/** Zips a folder so the ZipSource path gets exercised, not just directories. */
-async function zipUp(root: string): Promise<string> {
-  const out = join(await tempDir(), "export.zip");
-  await run("zip", ["-r", "-q", out, "."], { cwd: root });
-  return out;
-}
-
 describe("ZipSource", () => {
   it("reads a zipped export the same way as a folder", async () => {
     const root = await instagramExport();
-    const zip = await ZipSource.open(await zipUp(root));
+    const zip = await ZipSource.open(await zipDirectory(root));
 
     try {
       const fromZip = await parseWith(instagram, zip);
@@ -52,7 +41,7 @@ describe("ZipSource", () => {
   });
 
   it("is chosen automatically for a .zip path", async () => {
-    const source = await openSource(await zipUp(await instagramExport()));
+    const source = await openSource(await zipDirectory(await instagramExport()));
     expect(source).toBeInstanceOf(ZipSource);
     await source.close();
   });

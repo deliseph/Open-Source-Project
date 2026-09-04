@@ -80,3 +80,51 @@ jobs:
 
       - name: Audit
         run: npm audit --audit-level=moderate
+
+  crosscheck:
+    name: Crosscheck
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: crosscheck
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: node dist/cli.js doctor
+
+  radar:
+    name: Radar
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/radar
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # Radar reads public APIs and must never gain the ability to post.
+      # tests/no-write.test.ts asserts this too; this is the belt-and-braces
+      # check that survives someone deleting the test.
+      - name: Assert Radar cannot write anywhere
+        run: |
+          if grep -rnE "method\s*:\s*[\"']?(POST|PUT|PATCH|DELETE)" src/; then
+            echo "::error::Radar must not make mutating requests."
+            exit 1
+          fi
+          echo "No mutating requests in src/."
